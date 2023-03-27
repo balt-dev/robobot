@@ -1,0 +1,5 @@
+venv
+.idea
+auth.py
+data/bab/
+bot.db
