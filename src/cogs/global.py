@@ -11,17 +11,12 @@ class GlobalCog(commands.Cog, name="Global"):
         self.bot = bot
 
     @app_commands.command()
-    # i9n => interaction same way i18n => internationalization
-    async def til(self, i9n: Interaction, *, grid: str, rul: bool = False):
-        await self.render_tiles(i9n, grid, rule=rul)
+    async def til(self, interaction: Interaction, *, grid: str, rul: bool = False):
+        await self.render_tiles(interaction, grid, rule=rul)
 
-    @til.autocomplete("grid")
-    async def grid_autocomplete(self, i9n: Interaction, current: str):
-        current_tile = current.split(" ")[-1].split(",")[-1].split("&")[-1]
-        print(current_tile)
-        return [Choice(name=current_tile, value=current_tile)]
-
-    async def render_tiles(self, i9n: Interaction, grid: str, rule: bool = False):
+    async def render_tiles(self, interaction: Interaction, grid: str, rule: bool = False):
+        # TODO: REMEMBER TO re.split(r"(?<!\\) ") INSTEAD OF .split(" ") AND SUCH
+        # TODO: TILE RENDERING AND SPLITTING INTO A GRID
         assert 0, "Error?"
 
 

@@ -1,6 +1,7 @@
 import traceback
 
-from discord import Interaction
+import discord
+from discord import Interaction, app_commands
 from discord.app_commands import AppCommandError
 from discord.ext import commands
 
@@ -12,7 +13,7 @@ import config
 from ..utils import *
 
 
-class EventCog(commands.Cog, name='Events'):
+class ErrorCog(commands.Cog, name='Error'):
     def __init__(self, bot: Bot):
         self.bot = bot
 
@@ -27,13 +28,19 @@ class EventCog(commands.Cog, name='Events'):
 
     async def on_app_command_error(
             self,
-            i9n: Interaction,
+            interaction: Interaction,
             err: AppCommandError
     ):
-        tb = "\n".join(traceback.format_exception_only(err))
-        await error(i9n, f"""```py
-{tb}```""")
+        try:
+            if isinstance(err, app_commands.CheckFailure):
+                return await error(interaction, "Sorry, you can't run this command.")
+            tb = "\n`".join(traceback.format_exception_only(err))
+            await error(interaction, f"""```py
+    {tb}```""")
+        except discord.errors.InteractionResponded:
+            # Probably already handled earlier
+            traceback.print_exception(err)
 
 
 async def setup(bot: Bot):
-    await bot.add_cog(EventCog(bot))
+    await bot.add_cog(ErrorCog(bot))

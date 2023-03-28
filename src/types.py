@@ -32,6 +32,7 @@ class Bot(commands.Bot):
         await super().close()
 
     async def on_ready(self) -> None:
+        # await self.tree.sync()
         print("Connecting...")
         path = Path("./bot.db").resolve()
         print(path)

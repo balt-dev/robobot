@@ -13,3 +13,4 @@ log_id: int = <LOGGING WEBHOOK ID>
 err_id: int = <ERROR LOGGING WEBHOOK ID>
 ```
 - `py/python bot.py`
+- `/owner load ...` for everything there

@@ -12,13 +12,11 @@ from src.types import Bot
 bot = Bot(
     # Prefixes
     [],
-    # Other behavior parameters
     activity=discord.Game(name=config.activity),
     description=config.description,
     # Never mention roles, @everyone or @here
     allowed_mentions=discord.AllowedMentions(everyone=False, roles=False),
-    # Only receive message and reaction events
-    intents=discord.Intents(messages=True, reactions=True, message_content=True),
+    intents=discord.Intents(),
     # Disable the member cache
     member_cache_flags=discord.MemberCacheFlags.none(),
     # Disable the message cache

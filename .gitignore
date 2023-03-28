@@ -5,3 +5,4 @@ bot.db
 **/__pycache__
 bot.db-shm
 bot.db-wal
+data
