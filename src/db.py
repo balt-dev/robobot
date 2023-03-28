@@ -12,10 +12,6 @@ class Database:
 
     async def connect(self, db: str):
         self.conn = await asqlite.connect(db)
-
-        def regexp(pattern, string):
-            return bool(re.search(pattern, string))
-        self.conn.get_connection().create_function('regexp', 2, regexp)
         await self.create_tables()
 
     async def close(self):
