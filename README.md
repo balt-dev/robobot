@@ -7,10 +7,11 @@ ASDLKJAH!L!H@#K!@#H!@#!@#
 - Activate it (`source ./venv/bin/activate / .\venv\Scripts\activate`)
 - `pip install -r requirements.txt`
 - Create a file called `auth.py` with the following contents:
+    
     ```python
-token: str = "<BOT TOKEN>"
-log_id: int = <LOGGING WEBHOOK ID>
-err_id: int = <ERROR LOGGING WEBHOOK ID>
-```
+    token: str = "<BOT TOKEN>"
+    log_id: int = <LOGGING WEBHOOK ID>
+    err_id: int = <ERROR LOGGING WEBHOOK ID>
+    ```
 - `py/python bot.py`
 - `/owner load ...` for everything there
