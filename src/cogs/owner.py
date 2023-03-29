@@ -8,6 +8,7 @@ from discord.ext import commands
 
 from discord import app_commands, Interaction
 from discord.app_commands import Choice, Group, AppCommandError
+from discord.ext.commands import ExtensionNotLoaded
 
 from src.types import Bot
 from src.utils import *
@@ -22,13 +23,20 @@ class OwnerCog(commands.GroupCog, group_name="owner", group_description="Owner-o
 
     @app_commands.command()
     async def reload(self, interaction: Interaction):
+
+        async def try_reload(cog):
+            try:
+                return await self.bot.reload_extension(cog, package="bot")
+            except ExtensionNotLoaded:
+                return await self.bot.load_extension(cog, package="bot")
+
         async def gather_cogs():
             cogs = [
                 ".".join(Path(p).stem for p in path.parts)
                 for path in Path(".").glob("src/cogs/*.py")
                 if not path.stem.startswith("__")
             ]
-            await asyncio.gather(*(self.bot.reload_extension(cog, package="bot") for cog in cogs))
+            await asyncio.gather(*(try_reload(cog) for cog in cogs))
 
         await gather_cogs()
         await interaction.response.send_message("Reloaded cogs.", ephemeral=True)

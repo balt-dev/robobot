@@ -11,13 +11,18 @@ class GlobalCog(commands.Cog, name="Global"):
         self.bot = bot
 
     @app_commands.command()
-    async def til(self, interaction: Interaction, *, grid: str, rul: bool = False):
+    async def til(self, interaction: Interaction, *, grid: str, rul: bool = False, ephemeral: bool = False):
         await self.render_tiles(interaction, grid, rule=rul)
 
-    async def render_tiles(self, interaction: Interaction, grid: str, rule: bool = False):
+    async def parse_tiles(self, grid: str, rule: bool = False):
+        ...
+
+    async def render_tiles(self, interaction: Interaction, grid: str, rule: bool = False, ephemeral: bool = False):
         # TODO: REMEMBER TO re.split(r"(?<!\\) ") INSTEAD OF .split(" ") AND SUCH
         # TODO: TILE RENDERING AND SPLITTING INTO A GRID
-        assert 0, "Error?"
+        await interaction.response.defer(thinking=True, ephemeral=True)
+        tiles = await self.parse_tiles(grid, rule=rule)
+        await interaction.followup.send(str(tiles))
 
 
 async def setup(bot: Bot):

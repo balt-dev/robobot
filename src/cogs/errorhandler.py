@@ -32,8 +32,13 @@ class ErrorCog(commands.Cog, name='Error'):
             err: AppCommandError
     ):
         try:
+            if isinstance(err, commands.CommandInvokeError):
+                err = err.original
             if isinstance(err, app_commands.CheckFailure):
-                return await error(interaction, "Sorry, you can't run this command.")
+                return await error(interaction, "! y u tryin to run this?? u cant!!")
+            if isinstance(err, AssertionError):
+                return await error(interaction, f"uh oh!!!! {err.args[0]}")
+
             tb = "\n`".join(traceback.format_exception_only(err))
             await error(interaction, f"""```py
     {tb}```""")
