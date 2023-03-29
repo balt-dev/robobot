@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from datetime import datetime
 
 from pathlib import Path
@@ -27,16 +28,16 @@ class Bot(commands.Bot):
 
         asyncio.run(gather_cogs())
 
-    async def close(self) -> None:
+    async def close(self, code: int = 0) -> None:
         await self.change_presence(status=discord.Status.offline)
         await self.db.close()
         await super().close()
+        sys.exit(code)
 
     async def on_ready(self) -> None:
         # await self.tree.sync()
         print("Connecting...")
         path = Path("./bot.db").resolve()
-        print(path)
         await self.db.connect(path)
         print(f"Logged in as {self.user}!")
         await self.change_presence(status=discord.Status.online)

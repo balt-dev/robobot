@@ -1,11 +1,18 @@
 import re
+import struct
+from io import BytesIO
 
 import asqlite
+import numpy as np
+from PIL import Image
+
+from src.types import TileData, Bot
 
 
 class Database:
     conn: asqlite.Connection
-    bot: None
+    bot: Bot
+    tiles: dict[str, TileData] = {}
 
     def __init__(self, bot):
         self.bot = bot
@@ -13,6 +20,27 @@ class Database:
     async def connect(self, db: str):
         self.conn = await asqlite.connect(db)
         await self.create_tables()
+        await self.load_tiles()
+
+    async def load_tiles(self, *, flush: bool = False):
+        if flush: self.tiles = {}
+        async with self.conn.cursor() as cur:
+            await cur.execute("SELECT * FROM tiles")
+            for (name, colors, raw_sprites, painted) in await cur.fetchall():
+                colors = [[int(n) for n in color.split(",")] for color in colors.split(" ")]
+                painted = [
+                    [int(n) for n in paint.split(",")] if "," in paint else bool(int(paint))
+                    for paint in painted.split(" ")
+                ] if painted is not None else [True for _ in range(len(colors))]
+                sprites = []
+                with BytesIO(raw_sprites) as buf:
+                    while len(next_loc := buf.read(4)):
+                        seek_length, = struct.unpack("<L", next_loc)
+                        image_data = buf.read(seek_length)
+                        with BytesIO(image_data) as image_buf:
+                            with Image.open(image_buf) as im:
+                                sprites.append(np.array(im.convert("RGBA"), dtype=np.uint8))
+                self.tiles[name] = TileData(colors, sprites, painted)
 
     async def close(self):
         await self.conn.close()
@@ -23,9 +51,8 @@ class Database:
             CREATE TABLE IF NOT EXISTS tiles (
                 name TEXT PRIMARY KEY ASC NOT NULL UNIQUE,
                 color TEXT NOT NULL DEFAULT "0,3",
-                sprite TEXT NOT NULL,
-                layer INTEGER,
-                painted INTEGER
+                sprite BLOB NOT NULL,
+                painted TEXT
             ) WITHOUT ROWID;
             """)
             await cur.execute("""
