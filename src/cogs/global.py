@@ -1,11 +1,14 @@
 import re
+from io import BytesIO
 
+import discord
 from discord.ext import commands
 
 from discord import app_commands, Interaction
 from discord.app_commands import Choice
 
-from src.types import Bot, TileSkeleton
+from src import constants
+from src.types import Bot, TileSkeleton, RenderingContext, Tile#, Test
 from src.utils import respond
 
 
@@ -14,8 +17,26 @@ class GlobalCog(commands.Cog, name="Global"):
         self.bot = bot
 
     @app_commands.command()
-    async def til(self, interaction: Interaction, *, grid: str, rul: bool = False, ephemeral: bool = False):
-        await self.render_tiles(interaction, grid, rule=rul)
+    async def til(
+            self,
+            interaction: Interaction,
+            grid: str, *,
+            # Yes, it has to be this way. :/
+            ephemeral: bool = False,
+            spacing: int = constants.TILE_SIZE
+    ):
+        # TODO: REMEMBER TO re.split(r"(?<!\\) ") INSTEAD OF .split(" ") AND SUCH
+        # TODO: TILE RENDERING AND SPLITTING INTO A GRID
+        await interaction.response.defer(thinking=True, ephemeral=ephemeral)
+        ctx = RenderingContext(spacing)
+        tiles = list(self.parse_grid(grid))
+        # TODO: POST-PARSE SHIT
+        tiles = [Tile.build(skel, self.bot.db.tiles[skel.name]) for skel in tiles if
+                 skel is not None and skel.name in self.bot.db.tiles]
+        buf = BytesIO()
+        assert len(tiles), "wher til"
+        await self.bot.renderer.render(tiles, buf, ctx)
+        return await respond(interaction, content=None, file=discord.File(buf, filename="render.png"))
 
     @til.autocomplete("grid")
     async def complete_tile(self, interaction: Interaction, value: str):
@@ -26,18 +47,11 @@ class GlobalCog(commands.Cog, name="Global"):
         else:
             return [Choice(name=name, value=name) for name in self.bot.db.tiles if name.startswith(tile.name)][:5]
 
-    async def parse_grid(self, grid, rule: bool = False):
+    def parse_grid(self, grid):
         for y, row in enumerate(re.split(r"(?<!\\) ", grid)):
             for x, cell in enumerate(re.split(r"(?<!\\),", row)):
                 for z, tile in enumerate(re.split(r"(?<!\\)&", cell)):
                     yield TileSkeleton.parse(tile, (x, y), z)
-
-    async def render_tiles(self, interaction: Interaction, grid: str, rule: bool = False, ephemeral: bool = False):
-        # TODO: REMEMBER TO re.split(r"(?<!\\) ") INSTEAD OF .split(" ") AND SUCH
-        # TODO: TILE RENDERING AND SPLITTING INTO A GRID
-        await interaction.response.defer(thinking=True, ephemeral=ephemeral)
-        tiles = [tile async for tile in self.parse_grid(grid, rule=rule)]
-        await respond(interaction, str(tiles), ephemeral=ephemeral)
 
 
 async def setup(bot: Bot):

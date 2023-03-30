@@ -32,16 +32,16 @@ class ErrorCog(commands.Cog, name='Error'):
             err: AppCommandError
     ):
         try:
-            if isinstance(err, app_commands.CommandInvokeError):
+            if isinstance(err, app_commands.CommandInvokeError) or isinstance(err, commands.ExtensionFailed):
                 err = err.original
             if isinstance(err, app_commands.CheckFailure):
-                return await error(interaction, "! y u tryin to run this?? u not ballt!!")
+                return await respond(interaction, "! y u tryin to run this?? u not ballt!!", ephemeral=True)
             if isinstance(err, AssertionError):
-                return await error(interaction, f"uh oh!!!! {err.args[0]}")
+                return await respond(interaction, f"uh oh!!!! {err.args[0]}", ephemeral=True)
 
-            tb = "\n`".join(traceback.format_exception(err))
-            await error(interaction, f"""```py
-    {tb}```""")
+            tb = "\n".join(traceback.format_exception(err, chain=False, limit=-5))
+            await respond(interaction, f"""```py
+{tb[:1900]}```""", ephemeral=True)
         except discord.errors.InteractionResponded:
             # Probably already handled earlier
             traceback.print_exception(err)

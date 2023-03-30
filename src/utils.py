@@ -5,7 +5,7 @@ async def error(interaction: Interaction, *args, **kwargs):
     return await respond(interaction, *args, ephemeral=True, **kwargs)
 
 
-async def respond(interaction: Interaction, content: str, *, edit: bool = False, **kwargs):
+async def respond(interaction: Interaction, content: str | None, *, edit: bool = False, **kwargs):
     if interaction.response.is_done():
         if edit:
             if "ephemeral" in kwargs: del kwargs["ephemeral"]
