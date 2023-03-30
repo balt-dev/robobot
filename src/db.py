@@ -1,6 +1,7 @@
 import re
 import struct
 from io import BytesIO
+from pathlib import Path
 
 import asqlite
 import numpy as np
@@ -13,6 +14,8 @@ class Database:
     conn: asqlite.Connection
     bot: Bot
     tiles: dict[str, TileData] = {}
+    palettes: dict[str, np.ndarray] = {}
+    overlays: dict[str, np.ndarray] = {}
 
     def __init__(self, bot):
         self.bot = bot
@@ -21,6 +24,7 @@ class Database:
         self.conn = await asqlite.connect(db)
         await self.create_tables()
         await self.load_tiles()
+
 
     async def load_tiles(self, *, flush: bool = False):
         if flush: self.tiles = {}
@@ -41,6 +45,18 @@ class Database:
                             with Image.open(image_buf) as im:
                                 sprites.append(np.array(im.convert("RGBA"), dtype=np.uint8))
                 self.tiles[name] = TileData(colors, sprites, painted)
+
+    async def load_palettes(self):
+        self.palettes = {}
+        for pal in Path("data/bab/assets/palettes").glob("*.png"):
+            with Image.open(pal) as im:
+                self.palettes[pal.stem] = np.array(im, dtype=np.uint8)
+
+    async def load_overlays(self):
+        self.overlays = {}
+        for ov in Path("data/bab/assets/sprites/overlay").glob("*.png"):
+            with Image.open(ov) as im:
+                self.overlays[ov.stem] = np.array(im, dtype=np.uint8).astype(float) / 255
 
     async def close(self):
         await self.conn.close()

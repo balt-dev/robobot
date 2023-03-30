@@ -103,7 +103,7 @@ class OwnerCog(commands.GroupCog, group_name="owner", group_description="Owner-o
 
     @load_group.command()
     async def palettes(self, interaction: Interaction):
-        shutil.copytree("data/bab/assets/palettes", "data/palettes", dirs_exist_ok=True)
+        await self.bot.db.load_palettes()
         return await respond(interaction, "copid pallets", ephemeral=True)
 
     @app_commands.command()

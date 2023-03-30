@@ -1,5 +1,5 @@
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import asqlite
@@ -20,6 +20,8 @@ class Database:
     conn: asqlite.Connection
     bot: None
     tiles: dict[str, TileData]
+    palettes: dict[str, np.ndarray]
+    overlays: dict[str, np.ndarray]
 
     def __init__(self, bot): ...
 
@@ -31,6 +33,9 @@ class Database:
 
     async def create_tables(self) -> None: ...
 
+    async def load_palettes(self) -> None: ...
+
+    async def load_overlays(self) -> None: ...
 
 
 class Bot(commands.Bot):
@@ -56,6 +61,7 @@ class TileSkeleton:
     @classmethod
     def parse(cls, string: str, position: tuple[int, int], z_index: int):
         name, *variants = re.split(r"(?<!\\):", string)
+        assert "slab" not in name, "fuck slab hope she fuckign    dies or smtjh"
         if not len(name) or name == "-": return None
         return cls(name, variants, *position, z_index)
 
@@ -70,7 +76,7 @@ class Tile:
     colors: list[list[int, int] | list[int, int, int] | str]
     painted: list[list[int, int] | list[int, int, int] | bool]
     sprites: list[np.ndarray]
-    rotation: float = 0
+    palette: str = "default"
 
     @classmethod
     # data is passed by reference
@@ -87,8 +93,19 @@ class Tile:
         )
 
 @dataclass
+class ProcessedTile:
+    name: str
+    sprite: np.ndarray
+    x: int
+    y: int
+    z: int
+    scale: list[int, int] = field(default_factory=lambda: [1, 1])
+    rotation: float = 0
+
+@dataclass
 class RenderingContext:
     spacing: int = constants.TILE_SIZE
+    upscale: int = 2
 
 
 #class Test: ...

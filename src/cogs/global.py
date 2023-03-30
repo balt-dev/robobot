@@ -23,18 +23,20 @@ class GlobalCog(commands.Cog, name="Global"):
             grid: str, *,
             # Yes, it has to be this way. :/
             ephemeral: bool = False,
-            spacing: int = constants.TILE_SIZE
+            spacing: int = constants.TILE_SIZE,
+            upscale: int = 2
     ):
         # TODO: REMEMBER TO re.split(r"(?<!\\) ") INSTEAD OF .split(" ") AND SUCH
         # TODO: TILE RENDERING AND SPLITTING INTO A GRID
         await interaction.response.defer(thinking=True, ephemeral=ephemeral)
-        ctx = RenderingContext(spacing)
+        ctx = RenderingContext(spacing, upscale)
         tiles = list(self.parse_grid(grid))
         # TODO: POST-PARSE SHIT
         tiles = [Tile.build(skel, self.bot.db.tiles[skel.name]) for skel in tiles if
                  skel is not None and skel.name in self.bot.db.tiles]
         buf = BytesIO()
         assert len(tiles), "wher til"
+        tiles = self.bot.renderer.process(tiles, ctx)
         await self.bot.renderer.render(tiles, buf, ctx)
         return await respond(interaction, content=None, file=discord.File(buf, filename="render.png"))
 
