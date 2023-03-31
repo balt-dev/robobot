@@ -1,5 +1,6 @@
 import re
 import struct
+import warnings
 from io import BytesIO
 from pathlib import Path
 
@@ -23,8 +24,12 @@ class Database:
     async def connect(self, db: str):
         self.conn = await asqlite.connect(db)
         await self.create_tables()
-        await self.load_tiles()
+        await self.load()
 
+    async def load(self):
+        await self.load_tiles(flush=True)
+        await self.load_palettes()
+        await self.load_overlays()
 
     async def load_tiles(self, *, flush: bool = False):
         if flush: self.tiles = {}
@@ -44,6 +49,9 @@ class Database:
                         with BytesIO(image_data) as image_buf:
                             with Image.open(image_buf) as im:
                                 sprites.append(np.array(im.convert("RGBA"), dtype=np.uint8))
+                if len(sprites) != len(colors) or (painted is not None and len(sprites) != len(painted)):
+                    warnings.warn(f"Tile {name} is invalid")
+                    continue
                 self.tiles[name] = TileData(colors, sprites, painted)
 
     async def load_palettes(self):

@@ -44,16 +44,14 @@ class GlobalCog(commands.Cog, name="Global"):
     async def complete_tile(self, interaction: Interaction, value: str):
         current_tile = re.split(r"(?<!\\)&", re.split(r"(?<!\\),", re.split(r"(?<!\\) ", value)[-1])[-1])[-1]
         tile = TileSkeleton.parse(current_tile, (0, 0), 0)
-        if len(tile.variants):
-            return []  # [Choice(name=variant.name, value=variant.name) for variant in self.bot.variants if variant.startswith(tile.name)]
-        else:
-            return [Choice(name=name, value=name) for name in self.bot.db.tiles if name.startswith(tile.name)][:5]
+        if len(tile.variants): return []
+        return [Choice(name=name, value=name) for name in self.bot.db.tiles if name.startswith(tile.name)][:5]
 
     def parse_grid(self, grid):
         for y, row in enumerate(re.split(r"(?<!\\) ", grid)):
             for x, cell in enumerate(re.split(r"(?<!\\),", row)):
                 for z, tile in enumerate(re.split(r"(?<!\\)&", cell)):
-                    yield TileSkeleton.parse(tile, (x, y), z)
+                    yield TileSkeleton.parse(tile, (x, y), z, self.bot.variants)
 
 
 async def setup(bot: Bot):

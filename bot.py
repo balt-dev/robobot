@@ -16,6 +16,8 @@ class Bot(commands.Bot):
     def __init__(self, *args, **kwargs):
         self.started = datetime.utcnow()
         self.db = Database(self)
+        self.variants = []
+        self.renderer = None
         super().__init__(*args, **kwargs)
 
         async def gather_cogs():
