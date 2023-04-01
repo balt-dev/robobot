@@ -13,7 +13,6 @@ from io import BytesIO, StringIO
 from pathlib import Path
 import ast
 
-
 import discord
 from discord.ext import commands
 
@@ -21,14 +20,13 @@ from discord import app_commands, Interaction, ui
 from discord.app_commands import Choice, Group, AppCommandError
 from discord.ext.commands import ExtensionNotLoaded
 
+from src import constants
 from src.types import Bot, TileData
 from src.utils import *
 
 # Imports for /owner py, in case they're needed
 from PIL import Image
 import numpy as np
-
-import ast
 
 
 class OwnerCog(commands.GroupCog, group_name="owner", group_description="Owner-only commands."):
@@ -40,7 +38,7 @@ class OwnerCog(commands.GroupCog, group_name="owner", group_description="Owner-o
 
     @app_commands.command()
     async def reload(self, interaction: Interaction):
-
+        await interaction.response.defer(ephemeral=True, thinking=True)
         async def try_reload(cog):
             try:
                 return await self.bot.reload_extension(cog, package="bot")
@@ -74,16 +72,30 @@ class OwnerCog(commands.GroupCog, group_name="owner", group_description="Owner-o
                 for tile in tiles:
                     # Create a linked list of sprites
                     with BytesIO() as buf:
-                        for i, sprite_path in enumerate(tile["sprite"]):
-                            sprite_path: str
-                            try:
-                                with open((Path("data/bab/assets/sprites") / sprite_path).with_suffix(".png"), "rb") as f:
-                                    f.seek(0, os.SEEK_END)
-                                    buf.write(struct.pack("<L", f.tell()))
-                                    f.seek(0)
-                                    buf.write(f.read())
-                            except FileNotFoundError:
-                                warnings.warn(f"Can't find sprite {sprite_path}")
+                        with BytesIO() as buf_sleep:
+                            for i, sprite_path in enumerate(tile["sprite"]):
+                                sprite_path: str
+                                try:
+                                    with open((Path("data/bab/assets/sprites") / sprite_path).with_suffix(".png"),
+                                              "rb") as f:
+                                        f.seek(0, os.SEEK_END)
+                                        buf.write(struct.pack("<L", f.tell()))
+                                        f.seek(0)
+                                        buf.write(f.read())
+                                except FileNotFoundError:
+                                    warnings.warn(f"Can't find sprite {sprite_path}")
+                                try:
+                                    with open((Path("data/bab/assets/sprites") / (sprite_path + "_slep")).with_suffix(".png"),
+                                              "rb") as f:
+                                        f.seek(0, os.SEEK_END)
+                                        buf_sleep.write(struct.pack("<L", f.tell()))
+                                        f.seek(0)
+                                        buf_sleep.write(f.read())
+                                except FileNotFoundError:
+                                    pass
+                            sleep_sprites = buf_sleep.getvalue()
+                            if not len(sleep_sprites):
+                                sleep_sprites = None
                         sprites = buf.getvalue()
                     col = " ".join(",".join(str(n) for n in col) for col in tile["color"])
                     painted = " ".join([
@@ -92,8 +104,8 @@ class OwnerCog(commands.GroupCog, group_name="owner", group_description="Owner-o
                     ]) if "painted" in tile else None
                     async with self.bot.db.conn.cursor() as cur:
                         await cur.execute("""
-                            INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?)
-                        """, tile["name"], col, sprites, painted)
+                            INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?, ?)
+                        """, tile["name"], col, sprites, sleep_sprites, painted)
                     tiles_loaded += 1
                     if time.perf_counter() - start >= 1:
                         start = time.perf_counter()
@@ -107,8 +119,8 @@ class OwnerCog(commands.GroupCog, group_name="owner", group_description="Owner-o
         return await respond(interaction, "copid pallets", ephemeral=True)
 
     @app_commands.command()
-    async def sync(self, interaction: Interaction, everywhere: bool = False):
-        await self.bot.tree.sync(guild=None if everywhere else interaction.guild)
+    async def sync(self, interaction: Interaction):
+        await self.bot.tree.sync()
         await respond(interaction, "cyncd", ephemeral=True)
 
     @app_commands.command()
@@ -132,11 +144,14 @@ class OwnerCog(commands.GroupCog, group_name="owner", group_description="Owner-o
                 with redirect_stdout(buf):
                     with redirect_stderr(buf):
                         try:
-                            exec(query, globals(), {"bot": self.bot, "interaction": intr, "run": lambda f: self.bot.loop.create_task(f)})
+                            exec(query, globals(),
+                                 {"bot": self.bot, "interaction": intr, "run": lambda f: self.bot.loop.create_task(f)})
                         except Exception:
                             traceback.print_exc()
                 await respond(intr, f"```py\n{buf.getvalue()[:1989]}\n```", ephemeral=True)
+
         return await interaction.response.send_modal(PyModal())
 
+
 async def setup(bot: Bot):
-    await bot.add_cog(OwnerCog(bot))
+    await bot.add_cog(OwnerCog(bot), guild=constants.TESTING_GUILD)

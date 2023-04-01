@@ -11,12 +11,14 @@ import numpy as np
 from discord.ext import commands
 
 from src import constants
+from src.utils import cast
 
 
 @dataclass
 class TileData:
     colors: list[list[int, int] | list[int, int, int]]
     sprites: list[np.ndarray]
+    slep_sprites: list[np.ndarray] | None = None
     painted: list[bool | list[int, int] | list[int, int, int]] | None = None
 
 
@@ -56,16 +58,23 @@ class Bot(commands.Bot):
 
 
 class Variant(ABC):
-    name: str
     description: str
     signature: list[type]
     syntax: Pattern
     func: Callable
     type: Literal["tile", "sprite", "post"]
+    names: list[str]
+
+    def __init__(self, *args: Any | None):
+        self.args = args
 
     @abstractmethod
-    def apply(self):
+    def call(self, tile):
         raise NotImplementedError
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({','.join([f'{key}={value}' for key, value in self.__dict__.items()])})"
+
 
 @dataclass
 class TileSkeleton:
@@ -76,26 +85,30 @@ class TileSkeleton:
     z: int
 
     @classmethod
-    def parse(cls, string: str, position: tuple[int, int], z_index: int, possible_variants: list[Variant]):
+    def parse(cls, string: str, position: tuple[int, int], z_index: int, possible_variants: list, *, rule: bool = False):
         name, *variants = re.split(r"(?<!\\):", string)
         assert "slab" not in name, "fuck slab hope she fuckign    dies or smtjh"
         if not len(name) or name == "-": return None
         variants: list[str]
+        parsed_variants: list[Variant] = []
         for variant in variants:
-            do_break = False
+            # Tried to use a for-else here, but Python disagreed.
+            found_variant = False
             for possible_variant in possible_variants:
-                if do_break: break
-                print(possible_variant.syntax)
                 if match := re.fullmatch(possible_variant.syntax, variant):
-                    print(f"\t{match.groups()}")
-                    do_break = True
-
-        return cls(name, [], *position, z_index)
+                    parsed_variants.append(possible_variant(
+                        *(cast(arg_type, arg) for arg_type, arg in zip(possible_variant.signature, match.groups()))))
+                    found_variant = True
+                    break
+            assert found_variant, f"whar is varinnt `{variant}`??"
+        return cls(name, parsed_variants, *position, z_index)
 
 
 def to_tuple(val: Any) -> tuple:
     val = copy.deepcopy(val)
     try:
+        if isinstance(val, str):
+            raise TypeError
         for i, entry in enumerate(val):
             val[i] = to_tuple(val[i])
     except TypeError:
@@ -112,13 +125,15 @@ class Tile:
     z: int
     colors: list[list[int, int] | list[int, int, int] | str]
     painted: list[list[int, int] | list[int, int, int] | bool]
-    sprites: list[np.ndarray]
+    sprites: list[np.ndarray] = field(repr=False)
     palette: str = "default"
+    slep: bool = False
 
     @classmethod
     # data is passed by reference
-    def build(cls, skel: TileSkeleton, tile_data: TileData):
-        return cls(
+    async def build(cls, skel: TileSkeleton, tile_data: TileData):
+        tile_data = copy.deepcopy(tile_data)
+        tile = cls(
             skel.name,
             skel.variants,
             skel.x,
@@ -128,6 +143,14 @@ class Tile:
             tile_data.painted,
             tile_data.sprites
         )
+        for i, variant in enumerate(skel.variants):
+            if variant.type == "tile":
+                await variant.call(tile)
+                del skel.variants[i]
+        if tile.slep and tile_data.slep_sprites is not None:
+            tile.sprites = tile_data.slep_sprites
+        return tile
+
 
     def __hash__(self):
         for i in range(len(self.sprites)):
@@ -135,7 +158,6 @@ class Tile:
         tile_hash = hash((
             self.name,
             tuple(variant for variant in self.variants if variant.type != "post"),
-            self.x, self.y, self.z,
             to_tuple(self.colors),
             to_tuple(self.painted)
             # Sprites don't actually need to be hashed
@@ -148,7 +170,7 @@ class Tile:
 @dataclass
 class ProcessedTile:
     name: str
-    sprite: np.ndarray
+    sprite: np.ndarray = field(repr=False)
     x: int
     y: int
     z: int
@@ -162,5 +184,14 @@ class ProcessedTile:
 class RenderingContext:
     spacing: int = constants.TILE_SIZE
     upscale: int = 2
+    palette: str = "default"
 
-# class Test: ...
+
+class VariantList(list):
+    def find(self, name: str) -> Variant | None:
+        for variant in self:
+            variant: Variant
+            if variant.__class__.__name__.lower().startswith(name):
+                return variant
+        return None
+

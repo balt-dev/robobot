@@ -1,1 +1,5 @@
+import discord
+
 TILE_SIZE = 32
+MAX_SIZE = (2048, 2048)
+TESTING_GUILD = discord.Object(586337032876589075)

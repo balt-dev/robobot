@@ -35,7 +35,7 @@ class Database:
         if flush: self.tiles = {}
         async with self.conn.cursor() as cur:
             await cur.execute("SELECT * FROM tiles")
-            for (name, colors, raw_sprites, painted) in await cur.fetchall():
+            for (name, colors, raw_sprites, raw_slep_sprites, painted) in await cur.fetchall():
                 colors = [[int(n) for n in color.split(",")] for color in colors.split(" ")]
                 painted = [
                     [int(n) for n in paint.split(",")] if "," in paint else bool(int(paint))
@@ -49,22 +49,32 @@ class Database:
                         with BytesIO(image_data) as image_buf:
                             with Image.open(image_buf) as im:
                                 sprites.append(np.array(im.convert("RGBA"), dtype=np.uint8))
-                if len(sprites) != len(colors) or (painted is not None and len(sprites) != len(painted)):
+                if not len(sprites):
                     warnings.warn(f"Tile {name} is invalid")
                     continue
-                self.tiles[name] = TileData(colors, sprites, painted)
+                slep_sprites = None
+                if raw_slep_sprites is not None:
+                    slep_sprites = []
+                    with BytesIO(raw_slep_sprites) as buf:
+                        while len(next_loc := buf.read(4)):
+                            seek_length, = struct.unpack("<L", next_loc)
+                            image_data = buf.read(seek_length)
+                            with BytesIO(image_data) as image_buf:
+                                with Image.open(image_buf) as im:
+                                    slep_sprites.append(np.array(im.convert("RGBA"), dtype=np.uint8))
+                self.tiles[name] = TileData(colors, sprites, slep_sprites, painted)
 
     async def load_palettes(self):
         self.palettes = {}
         for pal in Path("data/bab/assets/palettes").glob("*.png"):
             with Image.open(pal) as im:
-                self.palettes[pal.stem] = np.array(im, dtype=np.uint8)
+                self.palettes[pal.stem] = np.array(im.convert("RGBA"), dtype=np.uint8)
 
     async def load_overlays(self):
         self.overlays = {}
         for ov in Path("data/bab/assets/sprites/overlay").glob("*.png"):
             with Image.open(ov) as im:
-                self.overlays[ov.stem] = np.array(im, dtype=np.uint8).astype(float) / 255
+                self.overlays[ov.stem] = np.array(im.convert("RGBA"), dtype=np.uint8).astype(float) / 255
 
     async def close(self):
         await self.conn.close()

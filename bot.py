@@ -9,14 +9,16 @@ from discord.ext import commands
 
 import auth
 import config
+from src import constants
 from src.db import Database
-from src.types import Bot
+from src.types import Bot, VariantList
+
 
 class Bot(commands.Bot):
     def __init__(self, *args, **kwargs):
         self.started = datetime.utcnow()
         self.db = Database(self)
-        self.variants = []
+        self.variants = VariantList()
         self.renderer = None
         super().__init__(*args, **kwargs)
 
@@ -31,23 +33,21 @@ class Bot(commands.Bot):
         asyncio.run(gather_cogs())
 
     async def close(self, code: int = 0) -> None:
-        await self.change_presence(status=discord.Status.offline)
         await self.db.close()
         await super().close()
         sys.exit(code)
 
     async def on_ready(self) -> None:
-        # await self.tree.sync()
+        #await self.tree.sync(guild=constants.TESTING_GUILD)
         print("Connecting...")
         path = Path("./bot.db").resolve()
         await self.db.connect(path)
         print(f"Logged in as {self.user}!")
-        await self.change_presence(status=discord.Status.online)
 
 bot = Bot(
     # Prefixes
     [],
-    activity=discord.Game(name=config.activity),
+    activity=config.activity,
     description=config.description,
     # Never mention roles, @everyone or @here
     allowed_mentions=discord.AllowedMentions(everyone=False, roles=False),

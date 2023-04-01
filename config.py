@@ -1,2 +1,4 @@
-activity = "devvign!!!!"
-description = "yes yes making the bot!!"
+import discord
+
+activity = discord.Game(name="happy april fools!!!")
+description = "happy april fools!!!"

@@ -1,3 +1,4 @@
+import copy
 import math
 from io import BytesIO
 
@@ -5,6 +6,7 @@ import numpy as np
 import cv2
 from PIL import Image
 
+from src.constants import MAX_SIZE
 from src.types import Bot, Tile, RenderingContext, ProcessedTile
 
 
@@ -13,6 +15,7 @@ class Renderer:
         self.bot = bot
 
     def blend(self, src, dst, mode):
+        assert src.shape == dst.shape, f"Shape mismatch of {src.shape=} and {dst.shape=}"
         out_a = (src[..., 3] + dst[..., 3] * (1 - src[..., 3] / 255)).astype(np.uint8)
         a, b = src[..., :3].astype(float) / 255, dst[..., :3].astype(float) / 255
         if mode == "normal":
@@ -38,8 +41,13 @@ class Renderer:
             if (isinstance(paint, bool) and paint) or force:
                 assert color in self.bot.db.overlays, f"what is overlayy `{color}`?? ?"
                 overlay = self.bot.db.overlays[color]
-                overlay = np.tile(overlay, (
-                math.ceil(overlay.shape[0] / sprite.shape[0]), math.ceil(overlay.shape[1] / sprite.shape[1]), 1))
+                overlay = np.tile(
+                    overlay, (
+                        math.ceil(sprite.shape[0] / overlay.shape[0]),
+                        math.ceil(sprite.shape[1] / overlay.shape[1]),
+                        1
+                    )
+                )
                 overlay = overlay[:sprite.shape[0], :sprite.shape[1]]
                 return np.multiply(sprite, overlay, casting="unsafe").astype(np.uint8)
             else:
@@ -53,17 +61,23 @@ class Renderer:
         color = np.array(color, dtype=float) / 255
         return np.multiply(sprite, color.reshape(1, 1, 4), casting="unsafe").astype(np.uint8)
 
-    def process(self, tiles: list[Tile], ctx: RenderingContext) -> list[ProcessedTile]:
+    async def process(self, tiles: list[Tile], ctx: RenderingContext) -> list[ProcessedTile]:
         processed_tile_list = []
         tile_cache = {}
         for tile in tiles:
             if (tile_hash := hash(tile)) in tile_cache:
-                final_tile = tile_cache[tile_hash]
+                final_tile = copy.deepcopy(tile_cache[tile_hash])  # A deepcopy is needed here :P
+                final_tile.x = tile.x
+                final_tile.y = tile.y
+                final_tile.z = tile.z
             else:
+                for i, variant in enumerate(tile.variants):
+                    if variant.type == "sprite":
+                        await variant.call(tile)
+                        del tile.variants[i]
                 sprites = tile.sprites
                 w, h = 0, 0
                 for i, sprite in enumerate(sprites):
-                    # TODO: Process and remove sprite variants
                     sprites[i] = sprite
                     w = max(w, sprite.shape[1])
                     h = max(h, sprite.shape[0])
@@ -83,12 +97,15 @@ class Renderer:
                     tile.z,
                     tile.variants
                 )
-            # TODO: Process post variants
+                tile_cache[hash(tile)] = final_tile
+            for variant in tile.variants:
+                # All non-post variants should've been weeded out by now
+                await variant.call(final_tile)
             processed_tile_list.append(final_tile)
         return processed_tile_list
 
-    async def render(self, tiles: list[ProcessedTile], buf: BytesIO, ctx: RenderingContext) -> None:
-        left, top, width, height = 0, 0, 0, 0
+    async def render(self, tiles: list[ProcessedTile], buf: BytesIO, ctx: RenderingContext, bg: tuple[int, int, int, int] = (0, 0, 0, 0)) -> None:
+        left, top, width, height = ctx.spacing / 2 * ctx.upscale, ctx.spacing / 2 * ctx.upscale, 0, 0
         for tile in tiles:
             tile: ProcessedTile
             h, w = tile.sprite.shape[:2]
@@ -96,25 +113,31 @@ class Renderer:
             tile.scale[1] *= ctx.upscale
             w *= tile.scale[0]
             h *= tile.scale[1]
-            print(f"{tile.name=}, {w=}, {h=}")
             tile.x *= ctx.spacing * ctx.upscale
             tile.y *= ctx.spacing * ctx.upscale
             left = max(left, w / 2 - tile.x)
             top = max(top, h / 2 - tile.y)
             width = max(width, left + tile.x + w / 2)
             height = max(height, top + tile.y + h / 2)
+        assert width <= MAX_SIZE[0] and height <= MAX_SIZE[1], f"ur img is to larg!! ({width, height} > {MAX_SIZE}"
         image = np.zeros((int(math.ceil(height)), int(math.ceil(width)), 4), dtype=np.uint8)
+        image += np.array(bg, dtype=np.uint8)
         for tile in sorted(tiles, key=lambda til: til.z):
             tile: ProcessedTile
             tile.x += left
             tile.y += top
 
-            sprite = cv2.resize(tile.sprite, (0, 0), fx=int(tile.scale[0]), fy=int(tile.scale[0]),
-                                interpolation=cv2.INTER_AREA)
+            sprite = cv2.resize(tile.sprite, (0, 0), fx=tile.scale[0], fy=tile.scale[1],
+                                interpolation=cv2.INTER_NEAREST)
+
             h, w = sprite.shape[:2]
 
-            image_slice = slice(int(tile.y - h // 2), int(tile.y + h // 2)), \
-                          slice(int(tile.x - w // 2), int(tile.x + w // 2))
+            center = w / 2, h / 2
+            matrix = cv2.getRotationMatrix2D(center, -tile.rotation, 1.)
+            sprite = cv2.warpAffine(sprite, matrix, (w, h), flags=cv2.INTER_NEAREST)
+
+            image_slice = slice(int(tile.y - h // 2), int(math.ceil(tile.y + h / 2))), \
+                slice(int(tile.x - w // 2), int(math.ceil(tile.x + w / 2)))
             image[*image_slice] = self.blend(image[*image_slice], sprite, "normal")
         Image.fromarray(image).save(buf, format="PNG")
         buf.seek(0)
