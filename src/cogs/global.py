@@ -30,6 +30,7 @@ class GlobalCog(commands.Cog, name="Global"):
             palette: str = "default"
     ):
         await interaction.response.defer(thinking=True, ephemeral=ephemeral)
+        assert not rul, "_rul is currently unimplemented due to hitting the deadline, will add tomorrow_"
         ctx = RenderingContext(spacing, upscale)
         assert palette in self.bot.db.palettes, f"idk where `{palette}` is ask ur gps"
         ctx.palette = palette
@@ -64,7 +65,7 @@ class GlobalCog(commands.Cog, name="Global"):
 
     @til.autocomplete("grid")
     async def complete_tile(self, interaction: Interaction, value: str):
-        current_tile = re.split(r"(?<!\\)&", re.split(r"(?<!\\),", re.split(r"(?<!\\) ", value)[-1])[-1])[-1]
+        current_tile = re.split(r"(?<!\\)\+", re.split(r"(?<!\\),", re.split(r"(?<!\\) ", value)[-1])[-1])[-1]
         tile = TileSkeleton.parse(current_tile, (0, 0), 0, self.bot.variants)
         if len(tile.variants): return []
         return [Choice(name=name, value=name) for name in self.bot.db.tiles if name.startswith(tile.name)][:25]
@@ -72,7 +73,7 @@ class GlobalCog(commands.Cog, name="Global"):
     def parse_grid(self, grid, rule: bool = False):
         for y, row in enumerate(re.split(r"(?<!\\) ", grid)):
             for x, cell in enumerate(re.split(r"(?<!\\),", row)):
-                for z, tile in enumerate(re.split(r"(?<!\\)&", cell)):
+                for z, tile in enumerate(re.split(r"(?<!\\)\+", cell)):
                     yield TileSkeleton.parse(tile, (x, y), z, self.bot.variants, rule=rule)
 
 
