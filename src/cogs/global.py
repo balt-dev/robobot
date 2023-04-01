@@ -27,7 +27,8 @@ class GlobalCog(commands.Cog, name="Global"):
             upscale: int = 2,
             rul: bool = False,
             bg: str = None,
-            palette: str = "default"
+            palette: str = "default",
+            file: discord.Attachment | None = None
     ):
         await interaction.response.defer(thinking=True, ephemeral=ephemeral)
         assert not rul, "_rul is currently unimplemented due to hitting the deadline, will add tomorrow_"
@@ -48,11 +49,14 @@ class GlobalCog(commands.Cog, name="Global"):
                 raise AssertionError(f"{bg} isnt a colr??? _(try `#RRGGBBAA` or `x/y`)_")
         else:
             bg = (0, 0, 0, 0)
+        if file is not None:
+            grid = str(await file.read(), "utf-8")
         raw_tiles = list(self.parse_grid(grid, rul))
         # TODO: POST-PARSE SHIT
         tiles = []
         for skel in raw_tiles:
             if skel is not None:
+                skel.name = re.sub(r"\\(.)", r"\1", skel.name)
                 assert skel.name in self.bot.db.tiles, f"wat is `{skel.name}`????"
                 tile = await Tile.build(skel, self.bot.db.tiles[skel.name])
                 tile.palette = ctx.palette

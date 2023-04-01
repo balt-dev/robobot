@@ -41,13 +41,8 @@ class Renderer:
             if (isinstance(paint, bool) and paint) or force:
                 assert color in self.bot.db.overlays, f"what is overlayy `{color}`?? ?"
                 overlay = self.bot.db.overlays[color]
-                overlay = np.tile(
-                    overlay, (
-                        math.ceil(sprite.shape[0] / overlay.shape[0]),
-                        math.ceil(sprite.shape[1] / overlay.shape[1]),
-                        1
-                    )
-                )
+                max_size = max(sprite.shape[:2])
+                overlay = cv2.resize(overlay, (max_size, max_size), interpolation=cv2.INTER_NEAREST)
                 overlay = overlay[:sprite.shape[0], :sprite.shape[1]]
                 return np.multiply(sprite, overlay, casting="unsafe").astype(np.uint8)
             else:
