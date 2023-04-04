@@ -99,15 +99,26 @@ class Renderer:
             processed_tile_list.append(final_tile)
         return processed_tile_list
 
-    async def render(self, tiles: list[ProcessedTile], buf: BytesIO, ctx: RenderingContext, bg: tuple[int, int, int, int] = (0, 0, 0, 0)) -> None:
-        left, top, width, height = ctx.spacing / 2 * ctx.upscale, ctx.spacing / 2 * ctx.upscale, 0, 0
+    async def render(
+            self,
+            tiles: list[ProcessedTile],
+            buf: BytesIO,
+            ctx: RenderingContext
+    ) -> None:
+        left, top, width, height = (
+            ctx.spacing / 2 * ctx.upscale,
+            ctx.spacing / 2 * ctx.upscale,
+            ctx.width * ctx.spacing * ctx.upscale,
+            ctx.height * ctx.spacing * ctx.upscale
+        )
         for tile in tiles:
             tile: ProcessedTile
             h, w = tile.sprite.shape[:2]
+            rotation_scale = math.cos(math.radians(-tile.rotation % 90)) + math.sin(math.radians(-tile.rotation % 90))
             tile.scale[0] *= ctx.upscale
             tile.scale[1] *= ctx.upscale
-            w *= tile.scale[0]
-            h *= tile.scale[1]
+            w *= tile.scale[0] * rotation_scale
+            h *= tile.scale[1] * rotation_scale
             tile.x *= ctx.spacing * ctx.upscale
             tile.y *= ctx.spacing * ctx.upscale
             left = max(left, w / 2 - tile.x)
@@ -116,7 +127,7 @@ class Renderer:
             height = max(height, top + tile.y + h / 2)
         assert width <= MAX_SIZE[0] and height <= MAX_SIZE[1], f"ur img is to larg!! ({width, height} > {MAX_SIZE}"
         image = np.zeros((int(math.ceil(height)), int(math.ceil(width)), 4), dtype=np.uint8)
-        image += np.array(bg, dtype=np.uint8)
+        image += np.array(ctx.bg, dtype=np.uint8)
         for tile in sorted(tiles, key=lambda til: til.z):
             tile: ProcessedTile
             tile.x += left
@@ -125,15 +136,19 @@ class Renderer:
             sprite = cv2.resize(tile.sprite, (0, 0), fx=tile.scale[0], fy=tile.scale[1],
                                 interpolation=cv2.INTER_NEAREST)
 
+            scale = math.cos(math.radians(-tile.rotation % 90)) + math.sin(math.radians(-tile.rotation % 90))
+            padding = math.floor(sprite.shape[0] * ((scale - 1) / 2)), math.floor(sprite.shape[1] * ((scale - 1) / 2))
+            sprite = np.pad(sprite, (padding, padding, (0, 0)))
+
             h, w = sprite.shape[:2]
 
             center = w / 2, h / 2
             matrix = cv2.getRotationMatrix2D(center, -tile.rotation, 1.)
             sprite = cv2.warpAffine(sprite, matrix, (w, h), flags=cv2.INTER_NEAREST)
-
-            image_slice = slice(int(tile.y - h // 2), int(math.ceil(tile.y + h / 2))), \
-                slice(int(tile.x - w // 2), int(math.ceil(tile.x + w / 2)))
-            image[*image_slice] = self.blend(image[*image_slice], sprite, "normal")
+            a, b = int(tile.y - h // 2), int(tile.x - w // 2)  # its 1am i can fix the var names later
+            image_slice = slice(a, a + sprite.shape[0]), slice(b, b+sprite.shape[1])
+            crop_shape = image[*image_slice].shape[:2]
+            image[*image_slice] = self.blend(image[*image_slice], sprite[:crop_shape[0], :crop_shape[1]], "normal")
         Image.fromarray(image).save(buf, format="PNG")
         buf.seek(0)
 

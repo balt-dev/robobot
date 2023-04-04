@@ -1,5 +1,6 @@
 discord.py
-Pillow
-numpy
+Pillow~=9.4.0
+numpy~=1.24.2
 git+https://github.com/Rapptz/asqlite
-opencv-python
+opencv-python~=4.7.0.72
+luaparser~=3.2.1

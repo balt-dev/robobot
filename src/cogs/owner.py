@@ -37,7 +37,7 @@ class OwnerCog(commands.GroupCog, group_name="owner", group_description="Owner-o
         return await interaction.client.is_owner(interaction.user)
 
     @app_commands.command()
-    async def reload(self, interaction: Interaction):
+    async def reload(self, interaction: Interaction, sync_testing: bool = False):
         await interaction.response.defer(ephemeral=True, thinking=True)
         async def try_reload(cog):
             try:
@@ -54,6 +54,8 @@ class OwnerCog(commands.GroupCog, group_name="owner", group_description="Owner-o
             await asyncio.gather(*(try_reload(cog) for cog in cogs))
 
         await gather_cogs()
+        if sync_testing:
+            await self.bot.tree.sync(guild=constants.TESTING_GUILD)
         await respond(interaction, "cogs been spunn!", ephemeral=True)
 
     load_group = Group(name="load", description="lod thinggs!!!")
@@ -104,8 +106,8 @@ class OwnerCog(commands.GroupCog, group_name="owner", group_description="Owner-o
                     ]) if "painted" in tile else None
                     async with self.bot.db.conn.cursor() as cur:
                         await cur.execute("""
-                            INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?, ?)
-                        """, tile["name"], col, sprites, sleep_sprites, painted)
+                            INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, tile["name"], col, sprites, sleep_sprites, painted, tile.get("rotate", False), tile.get("layer", None))
                     tiles_loaded += 1
                     if time.perf_counter() - start >= 1:
                         start = time.perf_counter()
@@ -118,9 +120,15 @@ class OwnerCog(commands.GroupCog, group_name="owner", group_description="Owner-o
         await self.bot.db.load_palettes()
         return await respond(interaction, "copid pallets", ephemeral=True)
 
+    @load_group.command()
+    async def worlds(self, interaction: Interaction):
+        await interaction.response.defer(thinking=True, ephemeral=True)
+        await self.bot.db.load_worlds()
+        return await respond(interaction, "loded wrlds", ephemeral=True)
+
     @app_commands.command()
-    async def sync(self, interaction: Interaction):
-        await self.bot.tree.sync()
+    async def sync(self, interaction: Interaction, testing: bool = True):
+        await self.bot.tree.sync(guild=constants.TESTING_GUILD if testing else None)
         await respond(interaction, "cyncd", ephemeral=True)
 
     @app_commands.command()

@@ -31,8 +31,7 @@ class GlobalCog(commands.Cog, name="Global"):
             file: discord.Attachment | None = None
     ):
         await interaction.response.defer(thinking=True, ephemeral=ephemeral)
-        assert not rul, "_rul is currently unimplemented due to hitting the deadline, will add tomorrow_"
-        ctx = RenderingContext(spacing, upscale)
+        ctx = RenderingContext(spacing, upscale, palette, (0, 0, 0, 0), 0, 0, rul)
         assert palette in self.bot.db.palettes, f"idk where `{palette}` is ask ur gps"
         ctx.palette = palette
         if bg is not None:
@@ -47,24 +46,16 @@ class GlobalCog(commands.Cog, name="Global"):
                     raise AssertionError(f"thers not a colr at `{x}, {y}`!!")
             else:
                 raise AssertionError(f"{bg} isnt a colr??? _(try `#RRGGBBAA` or `x/y`)_")
-        else:
-            bg = (0, 0, 0, 0)
+            ctx.bg = bg
         if file is not None:
             grid = str(await file.read(), "utf-8")
         raw_tiles = list(self.parse_grid(grid, rul))
         # TODO: POST-PARSE SHIT
-        tiles = []
-        for skel in raw_tiles:
-            if skel is not None:
-                skel.name = re.sub(r"\\(.)", r"\1", skel.name)
-                assert skel.name in self.bot.db.tiles, f"wat is `{skel.name}`????"
-                tile = await Tile.build(skel, self.bot.db.tiles[skel.name])
-                tile.palette = ctx.palette
-                tiles.append(tile)
+        tiles = await Tile.build_tiles(raw_tiles, ctx, self.bot)
         buf = BytesIO()
         assert len(tiles), "wher tils"
         tiles = await self.bot.renderer.process(tiles, ctx)
-        await self.bot.renderer.render(tiles, buf, ctx, bg=bg)
+        await self.bot.renderer.render(tiles, buf, ctx)
         return await respond(interaction, content=None, file=discord.File(buf, filename="render.png"))
 
     @til.autocomplete("grid")
@@ -78,7 +69,7 @@ class GlobalCog(commands.Cog, name="Global"):
         for y, row in enumerate(re.split(r"(?<!\\) ", grid)):
             for x, cell in enumerate(re.split(r"(?<!\\),", row)):
                 for z, tile in enumerate(re.split(r"(?<!\\)\+", cell)):
-                    yield TileSkeleton.parse(tile, (x, y), z, self.bot.variants, rule=rule)
+                    yield TileSkeleton.parse(tile, (x, y), self.bot.variants, layer=z)
 
 
 async def setup(bot: Bot):
